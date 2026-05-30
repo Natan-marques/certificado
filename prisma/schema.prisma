@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now()) @map("criado_em")
+}
+
+model Aluno {
+  id           String        @id @default(cuid())
+  nome         String
+  email        String        @unique
+  criadoEm     DateTime      @default(now()) @map("criado_em")
+  certificados Certificado[]
+}
+
+model Certificado {
+  id                String   @id @default(cuid())
+  alunoId           String   @map("aluno_id")
+  aluno             Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  codigoVerificacao String   @unique @map("codigo_verificacao")
+  nomeCurso         String   @map("nome_curso")
+  nomeInstrutor     String   @map("nome_instrutor")
+  cargaHoraria      Int      @map("carga_horaria")
+  dataConclusao     DateTime @map("data_conclusao")
+  ativo             Boolean  @default(true)
+  origem            String   // "automatico" ou "manual"
+  criadoEm          DateTime @default(now()) @map("criado_em")
+
+  @@index([codigoVerificacao])
+  @@index([alunoId])
+}
