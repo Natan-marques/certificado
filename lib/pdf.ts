@@ -1,133 +1,220 @@
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
+
+/**
+ * Retorna o caminho do executável do Chromium.
+ *
+ * Em produção (VPS), usa a variável de ambiente PUPPETEER_EXECUTABLE_PATH
+ * que deve apontar para o Chromium instalado nativamente na VPS
+ * (ex: /usr/bin/chromium-browser).
+ *
+ * Em desenvolvimento local, usa o Edge no Windows como fallback.
+ */
+function getChromiumExecutablePath(): string {
+  // Prioridade 1: variável de ambiente (VPS ou qualquer ambiente configurado)
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  // Prioridade 2: fallback para desenvolvimento local no Windows (Edge)
+  return 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+}
 
 export async function generateCertificatePDF(certificado: any, qrCodeDataUrl: string): Promise<Buffer> {
-  const isLocal = process.env.NODE_ENV === 'development';
+  const executablePath = getChromiumExecutablePath();
 
-  let browser;
-
-  if (isLocal) {
-    // For local development on Windows/Mac, you might need to point to a local Chrome executable
-    // or we can try using the sparticuz executable if it works locally.
-    // Generally @sparticuz/chromium is meant for AWS Lambda / Linux.
-    // As a fallback for local, we require puppeteer (full) to be installed or a local executable.
-    try {
-      const puppeteerFull = require('puppeteer');
-      browser = await puppeteerFull.launch({ headless: 'new' });
-    } catch (e) {
-      // If puppeteer full is not installed, fallback to Edge/Chrome path (Windows default)
-      browser = await puppeteer.launch({
-        executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', // Fallback for Windows
-        headless: 'new',
-      });
-    }
-  } else {
-    // Production (Linux VPS)
-    browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
-  }
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',   // evita crash em VPS com pouca memória compartilhada
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',          // recomendado para ambientes sem sandbox
+    ],
+  });
 
   const page = await browser.newPage();
 
-  // Create HTML content
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
       <meta charset="UTF-8">
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&family=Jura:wght@700&display=swap');
         
         body {
           margin: 0;
           padding: 0;
           width: 1123px;
           height: 794px;
-          font-family: 'Inter', sans-serif;
-          background-image: url('${process.env.NEXTAUTH_URL}/templates/certificado.png');
-          background-size: 1123px 794px;
-          background-repeat: no-repeat;
+          font-family: 'Poppins', sans-serif;
+          background-color: #f8f9fa;
+        }
+
+        .certificate-wrapper {
+          width: 1123px;
+          height: 794px;
+          padding: 40px;
+          box-sizing: border-box;
+          background-color: #141414;
           position: relative;
-          color: #333;
         }
 
-        .nome-aluno {
-          position: absolute;
-          top: 320px;
-          left: 0;
+        .inner-frame {
+          border: 4px solid #0898C6;
+          height: 100%;
           width: 100%;
-          text-align: center;
-          font-size: 42px;
-          font-weight: 700;
-          color: #1f2937;
-        }
-
-        .detalhes-curso {
-          position: absolute;
-          top: 420px;
-          left: 100px;
-          right: 100px;
-          text-align: center;
-          font-size: 22px;
-          line-height: 1.5;
-        }
-
-        .assinatura {
-          position: absolute;
-          bottom: 120px;
-          left: 150px;
-          text-align: center;
-        }
-
-        .assinatura .nome-instrutor {
-          font-weight: 600;
-          font-size: 20px;
-          border-top: 1px solid #333;
-          padding-top: 5px;
-          width: 300px;
-        }
-
-        .qrcode-container {
-          position: absolute;
-          bottom: 50px;
-          right: 50px;
+          box-sizing: border-box;
+          padding: 60px;
           display: flex;
           flex-direction: column;
           align-items: center;
+          text-align: center;
+          background-color: #141414;
+        }
+
+        .logo {
+          height: 70px;
+          margin-bottom: 40px;
+        }
+
+        .cert-label {
+          font-family: 'Jura', sans-serif;
+          font-size: 14px;
+          color: #FF9F00;
+          text-transform: uppercase;
+          letter-spacing: 6px;
+          margin-bottom: 30px;
+          font-weight: 700;
+        }
+
+        .intro-text {
+          font-size: 18px;
+          color: #7A7A7A;
+          max-width: 800px;
+          margin-bottom: 40px;
+          line-height: 1.6;
+        }
+
+        .nome-aluno {
+          font-size: 48px;
+          font-weight: 900;
+          color: #0898C6;
+          margin-bottom: 30px;
+          text-transform: uppercase;
+          border-bottom: 2px solid #0898C6;
+          display: inline-block;
+          padding-bottom: 10px;
+        }
+
+        .detalhes-curso {
+          font-size: 18px;
+          color: #7A7A7A;
+          line-height: 1.6;
+          max-width: 800px;
+        }
+
+        .detalhes-curso strong {
+          color: #FFFFFF;
+          font-weight: 700;
+        }
+
+        .footer {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-top: auto;
+          padding-top: 40px;
+        }
+
+        .assinatura {
+          text-align: left;
+        }
+
+        .assinatura-line {
+          width: 250px;
+          height: 1px;
+          background-color: #7A7A7A;
+          margin-bottom: 10px;
+        }
+
+        .nome-instrutor {
+          font-weight: 700;
+          font-size: 16px;
+          color: #FFFFFF;
+          text-transform: uppercase;
+        }
+
+        .cargo-instrutor {
+          font-size: 12px;
+          color: #7A7A7A;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+
+        .qrcode-container {
+          text-align: right;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
         }
 
         .qrcode-container img {
-          width: 120px;
-          height: 120px;
+          width: 90px;
+          height: 90px;
+          background-color: white;
+          padding: 5px;
+          border-radius: 4px;
         }
 
         .codigo-verificacao {
-          margin-top: 5px;
-          font-size: 12px;
+          margin-top: 8px;
+          font-size: 10px;
+          color: #7A7A7A;
           font-family: monospace;
+          font-weight: 700;
         }
       </style>
     </head>
     <body>
-      <div class="nome-aluno">${certificado.aluno.nome}</div>
-      <div class="detalhes-curso">
-        Concluiu com êxito o curso de <strong>${certificado.nomeCurso}</strong>,<br/>
-        com carga horária de <strong>${certificado.cargaHoraria} horas</strong>, em 
-        <strong>${certificado.dataConclusao.toLocaleDateString('pt-BR')}</strong>.
-      </div>
-      
-      <div class="assinatura">
-        <div class="nome-instrutor">${certificado.nomeInstrutor}</div>
-        <div style="font-size: 14px; margin-top: 2px;">Instrutor</div>
-      </div>
+      <div class="certificate-wrapper">
+        <div class="inner-frame">
+          <img src="https://targettrust.com.br/wp-content/uploads/2023/01/logott.png" class="logo">
+          
+          <div class="cert-label">Certificado de Conclusão Profissional</div>
+          
+          <div class="intro-text">
+            A TargetTrust certifica que o profissional abaixo completou com aproveitamento todos os requisitos da formação tecnológica.
+          </div>
 
-      <div class="qrcode-container">
-        <img src="${qrCodeDataUrl}" alt="QR Code de Validação" />
-        <div class="codigo-verificacao">Cód: ${certificado.codigoVerificacao}</div>
+          <div class="nome-aluno">${certificado.aluno.nome}</div>
+
+          <div class="detalhes-curso">
+            concluiu com êxito o treinamento de <strong>${certificado.nomeCurso}</strong>,<br/>
+            com carga horária de <strong>${certificado.cargaHoraria} horas</strong>, em 
+            <strong>${certificado.dataConclusao.toLocaleDateString('pt-BR')}</strong>.
+          </div>
+          
+          <div class="footer">
+            <div class="assinatura">
+              <div class="assinatura-line"></div>
+              <div class="nome-instrutor">${certificado.nomeInstrutor}</div>
+              <div class="cargo-instrutor">Instrutor Responsável</div>
+              <div style="font-size: 10px; color: #444; margin-top: 5px;">Porto Alegre, RS - Brasil</div>
+            </div>
+
+            <div class="qrcode-container">
+              <img src="${qrCodeDataUrl}" alt="QR Code" />
+              <div class="codigo-verificacao">PROTOCOLO: ${certificado.codigoVerificacao}</div>
+              <div class="codigo-verificacao" style="font-size: 8px;">targettrust.com.br/validar</div>
+            </div>
+          </div>
+        </div>
       </div>
     </body>
     </html>
