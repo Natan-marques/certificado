@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
     const pdfBuffer = await generateCertificatePDF(certificado, qrCodeDataUrl);
 
-    return new NextResponse(pdfBuffer as any, {
+    return new NextResponse(pdfBuffer as unknown as Uint8Array, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

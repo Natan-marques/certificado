@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import { NextResponse } from "next-server"; // Should be from "next/server", but let me fix that
 
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
